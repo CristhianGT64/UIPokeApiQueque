@@ -1,16 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, RefreshCw, ArrowUpDown } from "lucide-react"
+import { Download, RefreshCw, ArrowUpDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { deleteReport as reportServiceDelete } from "@/services/report-service"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+
+import ConfirmDialog from "@/components/ui/confirm-dialog"
 
 export default function ReportsTable({ reports, loading, onRefresh, onDownload }) {
   const [refreshing, setRefreshing] = useState(false)
   const [sortedReports, setSortedReports] = useState([])
   const [sortDirection, setSortDirection] = useState("desc") // "desc" para descendente (más reciente primero)
+  const [deletingId, setDeletingId] = useState(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState(null)
 
   // Ordenar los reportes cuando cambian o cuando cambia la dirección de ordenamiento
   useEffect(() => {
@@ -103,6 +109,47 @@ export default function ReportsTable({ reports, loading, onRefresh, onDownload }
     }
   }
 
+  // Abrir diálogo de confirmación
+  const handleDelete = (report) => {
+    const id = getPropertyValue(report, "reportId")
+    if (!id) {
+      toast.error("No se pudo identificar el reporte a eliminar")
+      return
+    }
+
+    setReportToDelete(report)
+    setConfirmOpen(true)
+  }
+
+  // Ejecutar eliminación después de confirmar
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
+
+    const id = getPropertyValue(reportToDelete, "reportId")
+    if (!id) { 
+      // Manejo de errores si no viene un ID
+      toast.error("No se pudo identificar el reporte a eliminar")
+      setConfirmOpen(false)
+      setReportToDelete(null)
+      return
+    }
+
+    /* Intentar hacer la eliminacion */
+    try {
+      setDeletingId(id)
+      await reportServiceDelete(id)
+      toast.success("Reporte eliminado correctamente")
+      if (onRefresh) await onRefresh()
+    } catch (error) {
+      console.error(error)
+      toast.error("No se pudo eliminar el reporte. Intenta de nuevo.")
+    } finally {
+      setDeletingId(null)
+      setConfirmOpen(false)
+      setReportToDelete(null)
+    }
+  }
+
   return (
     <div className="overflow-x-auto">
       <div className="flex justify-between items-center mb-2">
@@ -175,12 +222,22 @@ export default function ReportsTable({ reports, loading, onRefresh, onDownload }
                   </TableCell>
                   <TableCell>{getPropertyValue(report, "created")}</TableCell>
                   <TableCell>{getPropertyValue(report, "updated")}</TableCell>
-                  <TableCell>
+                  <TableCell className="flex gap-1">
                     {isStatusCompleted(report) && (
                       <Button variant="ghost" size="icon" onClick={() => handleDownload(report)} title="Download CSV">
                         <Download className="h-4 w-4" />
                       </Button>
                     )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(report)}
+                      title="Eliminar reporte"
+                      disabled={deletingId === getPropertyValue(report, "reportId")}
+                    >
+                      <Trash2 className={`h-4 w-4 ${deletingId === getPropertyValue(report, "reportId") ? "animate-spin" : ""}`} />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -194,6 +251,16 @@ export default function ReportsTable({ reports, loading, onRefresh, onDownload }
           </TableBody>
         </Table>
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Eliminar reporte"
+        description={reportToDelete ? `Deseas eliminar el reporte ${getPropertyValue(reportToDelete, "reportId")}? Esta acción no se puede deshacer.` : undefined}
+        onConfirm={confirmDelete}
+        onCancel={() => { setConfirmOpen(false); setReportToDelete(null); }}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        loading={!!deletingId}
+      />
     </div>
   )
 }

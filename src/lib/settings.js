@@ -1,3 +1,4 @@
 export default {
-    URL: "https://api-pokequeue-dev.azurewebsites.net",
+    // URL: "https://api-pokequequepcaiii-dev.azurewebsites.net",
+     URL : "http://localhost:8000", // Para pruebas locales
 };
