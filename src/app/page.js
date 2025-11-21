@@ -11,6 +11,7 @@ import PokemonTypeSelector from "@/components/pokemon-type-selector"
 import ReportsTable from "@/components/reports-table"
 import { getPokemonTypes } from "@/services/pokemon-service"
 import { getReports, createReport } from "@/services/report-service"
+import { Input } from "@/components/ui/input"
 
 export default function PokemonReportsPage() {
   const [pokemonTypes, setPokemonTypes] = useState([])
@@ -20,6 +21,8 @@ export default function PokemonReportsPage() {
   const [creatingReport, setCreatingReport] = useState(false)
   const [error, setError] = useState(null)
   const [selectedType, setSelectedType] = useState("")
+  const [maxRecords, setMaxRecords] = useState("")
+  const [maxRecordsError, setMaxRecordsError] = useState("")
 
   // Cargar los tipos de Pokémon
   useEffect(() => {
@@ -72,15 +75,26 @@ export default function PokemonReportsPage() {
     loadReports()
   }, [])
 
+  // Validar campo numérico
+  const validateMaxRecords = (value) => {
+    if (value === "") return "";
+    const num = Number(value);
+    if (!Number.isInteger(num) || num <= 0) return "Debe ser un entero positivo";
+    return "";
+  }
+
   // Función para capturar todos los Pokémon del tipo seleccionado
   const catchThemAll = async () => {
     if (!selectedType) return
+    const error = validateMaxRecords(maxRecords);
+    setMaxRecordsError(error);
+    if (error) return toast.error(error);
 
     try {
       setCreatingReport(true)
 
       // Crear un nuevo reporte usando la API
-      await createReport(selectedType)
+      await createReport(selectedType, maxRecords)
 
       // Mostrar notificación de éxito
       toast.success(`Se ha generado un nuevo reporte para el tipo ${selectedType}.`)
@@ -122,18 +136,35 @@ export default function PokemonReportsPage() {
           )}
 
           <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="w-full md:w-2/3">
+            <div className="w-full md:w-2/3 flex flex-col gap-2">
               <PokemonTypeSelector
                 pokemonTypes={pokemonTypes}
                 selectedType={selectedType}
                 onTypeChange={setSelectedType}
                 loading={loadingTypes}
               />
+              <div>
+                <label htmlFor="maxRecords" className="block text-sm font-medium mb-1">Número Máximo de Registros</label>
+                <Input
+                  id="maxRecords"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={maxRecords}
+                  onChange={e => {
+                    setMaxRecords(e.target.value);
+                    setMaxRecordsError(validateMaxRecords(e.target.value));
+                  }}
+                  placeholder="Ej: 100"
+                  className={maxRecordsError ? "border-destructive" : ""}
+                />
+                {maxRecordsError && <span className="text-xs text-destructive">{maxRecordsError}</span>}
+              </div>
             </div>
-            <div className="w-full md:w-1/3">
+            <div className="w-full md:w-1/3 flex items-end">
               <Button
                 onClick={catchThemAll}
-                disabled={!selectedType || isLoading || creatingReport}
+                disabled={!selectedType || isLoading || creatingReport || !!maxRecordsError}
                 className="w-full font-bold"
               >
                 {creatingReport ? "Creating..." : isLoading ? "Loading..." : "Catch them all!"}
